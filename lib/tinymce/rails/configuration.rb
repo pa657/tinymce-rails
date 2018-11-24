@@ -70,13 +70,18 @@ module TinyMCE::Rails
     end
 
     def options_for_tinymce
-      result = {}
+      options_for_tinymce_nested(options)
+    end
 
-      options.each do |key, value|
+    def options_for_tinymce_nested(options_nested)
+      result = {}
+      options_nested.each do |key, value|
         if array_option?(key, value)
           result[key] = value.join(OPTION_SEPARATORS[key])
         elsif function_option?(value)
           result[key] = Function.new(value)
+        elsif value.is_a?(Hash)
+          result[key] = options_for_tinymce_nested(value)
         else
           result[key] = value
         end
@@ -90,9 +95,15 @@ module TinyMCE::Rails
     end
 
     def to_javascript
-      pairs = options_for_tinymce.inject([]) do |result, (k, v)|
+      to_javascript_nested(options_for_tinymce)
+    end
+
+    def to_javascript_nested(options_nested)
+      pairs = options_nested.inject([]) do |result, (k, v)|
         if v.respond_to?(:to_javascript)
           v = v.to_javascript
+        elsif v.is_a?(Hash) && v.detect{|k2, v2| v2.respond_to?(:to_javascript)}
+          v = to_javascript_nested(v)
         elsif v.respond_to?(:to_json)
           v = v.to_json
         end
@@ -102,7 +113,6 @@ module TinyMCE::Rails
 
       "{\n  #{pairs.join(",\n  ")}\n}"
     end
-
     def merge(options)
       self.class.new(self.options.merge(options))
     end
